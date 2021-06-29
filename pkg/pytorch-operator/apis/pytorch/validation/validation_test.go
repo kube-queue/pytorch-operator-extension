@@ -20,7 +20,7 @@ import (
 	commonv1 "github.com/kube-queue/pytorch-operator-extension/pkg/pytorch-operator/apis/common/job_controller/v1"
 	torchv1 "github.com/kube-queue/pytorch-operator-extension/pkg/pytorch-operator/apis/pytorch/v1"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestValidateV1PyTorchJobSpec(t *testing.T) {
