@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	ConsumerRefKind       = "PyTorchJob"
-	ConsumerRefAPIVersion = "kubeflow.org/v1"
+	ConsumerRefKind       = v1.Kind
+	ConsumerRefAPIVersion = v1.GroupName + "/" + v1.GroupVersion
 )
 
 // Run runs the server.
@@ -61,7 +61,9 @@ func Run(opt *options.ServerOption) error {
 			FilterFunc: func(obj interface{}) bool {
 				switch qu := obj.(type) {
 				case *v1alpha1.QueueUnit:
-					if qu.Spec.ConsumerRef.Kind == ConsumerRefKind && qu.Spec.ConsumerRef.APIVersion == ConsumerRefAPIVersion {
+					if qu.Spec.ConsumerRef != nil &&
+						qu.Spec.ConsumerRef.Kind == ConsumerRefKind &&
+						qu.Spec.ConsumerRef.APIVersion == ConsumerRefAPIVersion {
 						return true
 					}
 					return false
