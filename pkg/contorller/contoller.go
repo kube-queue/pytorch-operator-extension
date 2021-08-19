@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/kube-queue/api/pkg/apis/scheduling/v1alpha1"
 	queueversioned "github.com/kube-queue/api/pkg/client/clientset/versioned"
