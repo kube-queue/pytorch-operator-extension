@@ -289,7 +289,7 @@ func (pc *PyTorchExtensionController) generateQueueUnitInstance(pytorchJob *pyto
 		}
 	}
 
-	// 3. calculate the total resources of this tensorflow instance
+	// 3. calculate the total resources of this pytorch instance
 	resources := pc.calculateTotalResources(pytorchJob)
 	// 4. build QueueUnit
 	return &v1alpha1.QueueUnit{
