@@ -137,7 +137,7 @@ func (pc *PyTorchExtensionController) syncHandler(key string) error {
 	queueUnit, err := pc.queueInformer.Lister().QueueUnits(namespace).Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			klog.Errorf("QueueUnit %s has been deleted: %s ...", queueUnit.Name)
+			klog.Errorf("failed to find qu by:%v/%v, maybe qu has been deleted", namespace, name)
 			// If can't get queueunit, return nil, handleErr function will forget key from workqueue
 			return nil
 		}
@@ -276,7 +276,7 @@ func (pc *PyTorchExtensionController) generateQueueUnitInstance(pytorchJob *pyto
 		break
 	}
 
-	// If there is a related priorityClassInstance in K8s, we use priorityClass's value instead of pytorchJob.Spec.TFReplicaSpecs[role].Template.Spec.Priority
+	// If there is a related priorityClassInstance in K8s, we use priorityClass's value instead of pytorchJob.Spec.PyTorchReplicaSpecs[role].Template.Spec.Priority
 	if priorityClassName != "" {
 		priorityClassInstance, err := pc.k8sClient.SchedulingV1().PriorityClasses().Get(context.TODO(), priorityClassName, metav1.GetOptions{})
 		if err != nil {
@@ -354,7 +354,7 @@ func (pc *PyTorchExtensionController) calculateTotalResources(pytorchJob *pytorc
 
 func (pc *PyTorchExtensionController) AddPyTorchJob(obj interface{}) {
 	pytorchJob := obj.(*pytorchjobv1.PyTorchJob)
-	klog.Infof("Add pytorchjob:%v/%v", pytorchJob.Namespace, pytorchJob.Name)
+	klog.Infof("Get add pytorchjob %v/%v event", pytorchJob.Namespace, pytorchJob.Name)
 	err := pc.createQueueUnitInstance(pytorchJob)
 	if err != nil {
 		klog.Errorf("Can't create queueunit for pytorchjob %v/%v,err is:%v", pytorchJob.Namespace, pytorchJob.Name, err)
@@ -375,13 +375,13 @@ func (pc *PyTorchExtensionController) AddPyTorchJob(obj interface{}) {
 }
 
 func (pc *PyTorchExtensionController) UpdatePyTorchJob(_, newObj interface{}) {
-	newJob := newObj.(*pytorchjobv1.PyTorchJob)
-	conditionsLen := len(newJob.Status.Conditions)
+	newPytorchJob := newObj.(*pytorchjobv1.PyTorchJob)
+	conditionsLen := len(newPytorchJob.Status.Conditions)
 	if conditionsLen > 0 {
-		lastCondition := newJob.Status.Conditions[conditionsLen-1]
+		lastCondition := newPytorchJob.Status.Conditions[conditionsLen-1]
 		if lastCondition.Type == commonv1.JobFailed || lastCondition.Type == commonv1.JobSucceeded {
-			klog.Infof("job %v/%v finished, current lastCondition.Type: [%v]", newJob.Namespace, newJob.Name, lastCondition.Type)
-			pc.deleteQueueUnitAfterJobTerminated(newJob)
+			klog.Infof("job %v/%v finished, current lastCondition.Type: [%v]", newPytorchJob.Namespace, newPytorchJob.Name, lastCondition.Type)
+			pc.deleteQueueUnitAfterJobTerminated(newPytorchJob)
 		}
 	}
 }
@@ -391,21 +391,22 @@ func (pc *PyTorchExtensionController) DeletePyTorchJob(obj interface{}) {
 	pc.deleteQueueUnitAfterJobTerminated(job)
 }
 
-func (pc *PyTorchExtensionController) deleteQueueUnitAfterJobTerminated(job *pytorchjobv1.PyTorchJob) {
-	qulist, err := pc.queueClient.SchedulingV1alpha1().QueueUnits(job.Namespace).List(context.TODO(), metav1.ListOptions{})
+func (pc *PyTorchExtensionController) deleteQueueUnitAfterJobTerminated(pytorchJob *pytorchjobv1.PyTorchJob) {
+	// Get queueunit from cache
+	qu, err := pc.queueInformer.Lister().QueueUnits(pytorchJob.Namespace).Get(pytorchJob.Name + QuNameSuffix)
 	if err != nil {
-		klog.Errorf("DeletePyTorchJob error: get qulist failed %v/%v %v", job.Namespace, job.Name, err.Error())
-		return
-	}
-
-	for _, qu := range qulist.Items {
-		if qu.Spec.ConsumerRef.Name == job.Name && qu.Spec.ConsumerRef.Kind == ConsumerRefKind {
-			err = pc.deleteQueueUnitInstance(job.Namespace, qu.Name)
-			if err != nil {
-				klog.Errorf("Delete queueunit error: delete qu failed %v/%v %v", qu.Namespace, qu.Name, err)
-			}
-			klog.Infof("Delete queueunit %s because related pytorchjob %v/%v terminated", qu.Name, job.Namespace, job.Name)
+		if errors.IsNotFound(err) {
+			klog.Errorf("failed to get related queueunit by pytorchjob:%v/%v when delete queueunit, "+
+				"maybe qu has been deleted", pytorchJob.Namespace, pytorchJob.Name)
+			return
 		}
+	}
+	if qu.Spec.ConsumerRef.Name == pytorchJob.Name && qu.Spec.ConsumerRef.Kind == ConsumerRefKind {
+		err = pc.deleteQueueUnitInstance(qu.Namespace, qu.Name)
+		if err != nil {
+			klog.Errorf("Delete queueunit error: delete qu failed %v/%v %v", qu.Namespace, qu.Name, err)
+		}
+		klog.Infof("Delete queueunit %s because related pytorchjob %v/%v terminated", qu.Name, pytorchJob.Namespace, pytorchJob.Name)
 	}
 }
 
