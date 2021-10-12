@@ -43,6 +43,7 @@ const (
 	// QuNameSuffix is the suffix of the queue unit name when create a new one.
 	// In this way, different types of jobs with the same name will create different queue unit name.
 	QuNameSuffix = "-pytorch-qu"
+	Queuing      = "Queuing"
 )
 
 type PyTorchExtensionController struct {
@@ -357,6 +358,19 @@ func (pc *PyTorchExtensionController) AddPyTorchJob(obj interface{}) {
 	err := pc.createQueueUnitInstance(pytorchJob)
 	if err != nil {
 		klog.Errorf("Can't create queueunit for pytorchjob %v/%v,err is:%v", pytorchJob.Namespace, pytorchJob.Name, err)
+	}
+
+	if pytorchJob.Status.Conditions == nil {
+		pytorchJob.Status.Conditions = make([]commonv1.JobCondition, 0)
+		pytorchJob.Status.Conditions = append(pytorchJob.Status.Conditions, commonv1.JobCondition{
+			Type:           Queuing,
+			LastUpdateTime: metav1.Now(),
+		})
+		_, err := pc.pytorchJobClient.KubeflowV1().PyTorchJobs(pytorchJob.Namespace).UpdateStatus(context.TODO(), pytorchJob, metav1.UpdateOptions{})
+		if err != nil {
+			klog.Errorf("update pytorchJob failed Queuing %v/%v %v", pytorchJob.Namespace, pytorchJob.Name, err.Error())
+		}
+		klog.Infof("update pytorchJob %v/%v status Queuing successfully", pytorchJob.Namespace, pytorchJob.Name)
 	}
 }
 
